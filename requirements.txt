@@ -4,6 +4,4 @@ streamlit
 scikit-learn
 kagglehub
 tensorflow
-os
-random 
-matplotlab
+
