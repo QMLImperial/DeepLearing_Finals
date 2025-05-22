@@ -1,55 +1,45 @@
 import streamlit as st
-import onnxruntime as ort
 import numpy as np
+import onnxruntime as ort
 from PIL import Image
-import requests
-import os
+import torch
+from torchvision import transforms
+import matplotlib.pyplot as plt
 
-CLASS_NAMES = ['Cargo', 'Military', 'Carrier', 'Cruise', 'Tankers']
+class_names = ['Cargo', 'Military', 'Carrier', 'Cruise', 'Tankers']
 
-MODEL_URL = "https://raw.githubusercontent.com/QMLImperial/DeepLearing_Finals/master/ship_classifier.onnx"
-MODEL_PATH = "ship_classifier.onnx"
-
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        with st.spinner("📥 Downloading model..."):
-            response = requests.get(MODEL_URL)
-            with open(MODEL_PATH, "wb") as f:
-                f.write(response.content)
-
+# Load ONNX model
 @st.cache_resource
 def load_model():
-    download_model()
-    return ort.InferenceSession(MODEL_PATH)
+    session = ort.InferenceSession("ship_classifier.onnx", providers=["CPUExecutionProvider"])
+    return session
 
 model = load_model()
 
-st.title("🚢 Ship Classifier")
-st.write("Upload an image of a ship to predict its type.")
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+st.title("🚢 Ship Type Classifier")
 
-if uploaded_file is not None:
+uploaded_file = st.file_uploader("Upload a ship image", type=["jpg", "jpeg", "png"])
+
+if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption='Uploaded Image', use_container_width=True)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Preprocess image
-    image = image.resize((224, 224))
-    img_array = np.array(image).astype(np.float32) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+    img_tensor = transform(image).unsqueeze(0).numpy()
 
-    # ONNX Prediction
     input_name = model.get_inputs()[0].name
-    outputs = model.run(None, {input_name: img_array})
-    predictions = outputs[0][0]
+    outputs = model.run(None, {input_name: img_tensor})
 
-    predicted_class = CLASS_NAMES[np.argmax(predictions)]
-    confidence = float(np.max(predictions))
+    logits = torch.tensor(outputs[0][0])
+    probs = torch.nn.functional.softmax(logits, dim=0).numpy()
+    pred_index = np.argmax(probs)
+    pred_label = class_names[pred_index]
 
-    st.subheader("🔍 Prediction")
-    st.write(f"**Class:** `{predicted_class}`")
-    st.write(f"**Confidence:** `{confidence * 100:.2f}%`")
-
-    st.subheader("📊 Class Probabilities")
-    for i, prob in enumerate(predictions):
-        st.write(f"{CLASS_NAMES[i]}: `{prob * 100:.2f}%`")
+    st.subheader(f"Predicted: {pred_label}")
+    st.write("Prediction confidence:")
+    st.bar_chart(probs)
