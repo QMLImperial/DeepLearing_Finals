@@ -1,7 +1,7 @@
 streamlit
 pandas
 numpy
-tensorflow
+tensorflow-cpu
 pandas
 numpy
 matplotlib
