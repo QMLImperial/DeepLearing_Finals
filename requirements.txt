@@ -3,3 +3,6 @@ onnxruntime
 numpy
 Pillow
 requests
+torch 
+torchvision 
+matplotlib
