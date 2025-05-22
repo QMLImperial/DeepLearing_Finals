@@ -1,45 +1,58 @@
 import streamlit as st
-import numpy as np
-import onnxruntime as ort
 from PIL import Image
+import numpy as np
 import torch
-from torchvision import transforms
+import torchvision.transforms as transforms
+import onnxruntime as ort
 import matplotlib.pyplot as plt
 
+# Class names (in correct order)
 class_names = ['Cargo', 'Military', 'Carrier', 'Cruise', 'Tankers']
+
+# Set up image transform to match training preprocessing
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
 
 # Load ONNX model
 @st.cache_resource
 def load_model():
-    session = ort.InferenceSession("ship_classifier.onnx", providers=["CPUExecutionProvider"])
-    return session
+    return ort.InferenceSession("ship_classifier.onnx")
 
-model = load_model()
+session = load_model()
 
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
+st.title("Ship Classification with Deep Learning 🚢")
+st.write("Upload a ship image and get the predicted category.")
 
-st.title("🚢 Ship Type Classifier")
-
-uploaded_file = st.file_uploader("Upload a ship image", type=["jpg", "jpeg", "png"])
+# Upload image
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    img_tensor = transform(image).unsqueeze(0).numpy()
+    # Preprocess image
+    img_tensor = transform(image).unsqueeze(0).numpy()  # shape: (1, 3, 224, 224)
 
-    input_name = model.get_inputs()[0].name
-    outputs = model.run(None, {input_name: img_tensor})
+    # Run ONNX model
+    input_name = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name
+    result = session.run([output_name], {input_name: img_tensor})[0]
 
-    logits = torch.tensor(outputs[0][0])
-    probs = torch.nn.functional.softmax(logits, dim=0).numpy()
+    # Softmax for probabilities
+    probs = torch.nn.functional.softmax(torch.tensor(result[0]), dim=0).numpy()
     pred_index = np.argmax(probs)
-    pred_label = class_names[pred_index]
+    pred_class = class_names[pred_index]
 
-    st.subheader(f"Predicted: {pred_label}")
-    st.write("Prediction confidence:")
-    st.bar_chart(probs)
+    st.write(f"### Predicted Class: **{pred_class}**")
+    
+    # Plot confidence bar chart
+    fig, ax = plt.subplots()
+    ax.barh(class_names, probs, color='skyblue')
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("Confidence")
+    ax.invert_yaxis()
+    st.pyplot(fig)
