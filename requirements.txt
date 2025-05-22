@@ -1,6 +1,6 @@
-numpy
-pandas
 streamlit
-scikit-learn
-
-import tensorflow
+pandas
+numpy
+tensorflow
+matplotlib
+Pillow
