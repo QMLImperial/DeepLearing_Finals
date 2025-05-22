@@ -2,14 +2,28 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import requests
+import os
 
 # Class names
 CLASS_NAMES = ['Cargo', 'Military', 'Carrier', 'Cruise', 'Tankers']
 
+# Download model from GitHub if not already present
+MODEL_URL = "https://raw.githubusercontent.com/your-username/your-repo/main/ship_classifier.h5"
+MODEL_PATH = "ship_classifier.h5"
+
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("Downloading model..."):
+            response = requests.get(MODEL_URL)
+            with open(MODEL_PATH, "wb") as f:
+                f.write(response.content)
+
 # Load model
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model("ship_classifier.h5")
+    download_model()
+    return tf.keras.models.load_model(MODEL_PATH)
 
 model = load_model()
 
