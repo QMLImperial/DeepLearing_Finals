@@ -1,6 +1,9 @@
 streamlit
 pandas
 numpy
-tensorflow
+tensorflow==2.13.0
+tensorflow-estimator==2.13.0
+tensorflow-intel==2.13.0
+tensorflow-io-gcs-filesystem==0.31.0
 matplotlib
 Pillow
