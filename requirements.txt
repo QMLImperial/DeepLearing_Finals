@@ -1,9 +1,1 @@
 streamlit
-pandas
-numpy
-tensorflow-cpu
-pandas
-numpy
-matplotlib
-pillow
-requests
