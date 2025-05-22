@@ -1,55 +1,55 @@
-
 import streamlit as st
-import tensorflow as tf
+import onnxruntime as ort
 import numpy as np
 from PIL import Image
+import requests
+import os
 
+CLASS_NAMES = ['Cargo', 'Military', 'Carrier', 'Cruise', 'Tankers']
 
-st.set_option('deprecation.showfileUploaderEncoding', False)
+MODEL_URL = "https://raw.githubusercontent.com/QMLImperial/DeepLearing_Finals/master/ship_classifier.onnx"
+MODEL_PATH = "ship_classifier.onnx"
 
-@st.cache(allow_output_mutation=True)
+def download_model():
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("📥 Downloading model..."):
+            response = requests.get(MODEL_URL)
+            with open(MODEL_PATH, "wb") as f:
+                f.write(response.content)
+
+@st.cache_resource
 def load_model():
-	model = tf.keras.models.load_model('./flower_model_trained.hdf5')
-	return model
-
-
-def predict_class(image, model):
-
-	image = tf.cast(image, tf.float32)
-	image = tf.image.resize(image, [180, 180])
-
-	image = np.expand_dims(image, axis = 0)
-
-	prediction = model.predict(image)
-
-	return prediction
-
+    download_model()
+    return ort.InferenceSession(MODEL_PATH)
 
 model = load_model()
-st.title('Flower Classifier')
 
-file = st.file_uploader("Upload an image of a flower", type=["jpg", "png"])
+st.title("🚢 Ship Classifier")
+st.write("Upload an image of a ship to predict its type.")
 
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-if file is None:
-	st.text('Waiting for upload....')
+if uploaded_file is not None:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption='Uploaded Image', use_column_width=True)
 
-else:
-	slot = st.empty()
-	slot.text('Running inference....')
+    # Preprocess image
+    image = image.resize((224, 224))
+    img_array = np.array(image).astype(np.float32) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
-	test_image = Image.open(file)
+    # ONNX Prediction
+    input_name = model.get_inputs()[0].name
+    outputs = model.run(None, {input_name: img_array})
+    predictions = outputs[0][0]
 
-	st.image(test_image, caption="Input Image", width = 400)
+    predicted_class = CLASS_NAMES[np.argmax(predictions)]
+    confidence = float(np.max(predictions))
 
-	pred = predict_class(np.asarray(test_image), model)
+    st.subheader("🔍 Prediction")
+    st.write(f"**Class:** `{predicted_class}`")
+    st.write(f"**Confidence:** `{confidence * 100:.2f}%`")
 
-	class_names = ['daisy', 'dandelion', 'rose', 'sunflower', 'tulip']
-
-	result = class_names[np.argmax(pred)]
-
-	output = 'The image is a ' + result
-
-	slot.text('Done')
-
-	st.success(output)
+    st.subheader("📊 Class Probabilities")
+    for i, prob in enumerate(predictions):
+        st.write(f"{CLASS_NAMES[i]}: `{prob * 100:.2f}%`")
